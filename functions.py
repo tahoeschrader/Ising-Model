@@ -23,9 +23,6 @@ import time
 
 # ------------------------------------------------------------------------------
 
-# Begin a time tracker
-start = time.time()
-print "Code Initiated"
 ################################################################################
 ### Initialize a 2D Lattice with random up/down spins
 ################################################################################
@@ -37,6 +34,17 @@ def InitializeSpins(n) :
     random.seed()
     lattice = [[1 if random.random() >= .5 else -1 for row in range(n)] for col in range(n)]
 
+    return lattice
+
+################################################################################
+### Flip a random spin on a lattice
+################################################################################
+
+def SpinFlip(n, lattice) :
+    random.seed()
+    row = int(random.random()*n)                # random row
+    col = int(random.random()*n)                # random column
+    lattice[row][col] = - lattice[row][col]     # negative sign switches flip
     return lattice
 
 ################################################################################
@@ -85,22 +93,42 @@ def MeasureEnergy(lattice, n, J) :
 
 ################################################################################
 ### Measure the magnetization of the system
-### For Magnetization: M = SUM (s_j) -- the sum is of individual points
+### For Magnetization in the presence of a heatbath: M = SUM (M_a * P_a)
 ################################################################################
 
-def MeasureMagnetization(lattice) :
-    magnetization = np.sum(lattice)
+def MeasureMagnetization(magnetization, lattice, energy_microstate, kB, temperature) :
+    # M_a is the microstate magnetization -- equivalent to the sum of all spins
+    magnetization_microstate = np.sum(lattice)
+
+    # Now, multiply by the Metropolis Probability
+    magnetization = (magnetization_microstate * np.exp(- energy_microstate / (kB * temperature)))
     return magnetization
 
-########## TESTS
-n = 500
-lattice = InitializeSpins(n)
-energy = MeasureEnergy(lattice, n, 1.5)
-magnetization = MeasureMagnetization(lattice)
+################################################################################
+### Metropolis Algorithm
+################################################################################
 
-print energy
-print magnetization
+def MetropolisAlgorithm(energy_microstate, hypothetical_energy_microstate, kB, temperature, n, lattice, evolved_lattice) :
+    # Calculate the change in energy_microstate
+    dE = (hypothetical_energy_microstate - energy_microstate)
 
-# Finish counting time
-end = time.time()
-print "This code finished after ", (end-start), " seconds"
+    # Check values
+    if dE < 0 :
+        # Keep the flipped spin
+        return evolved_lattice, hypothetical_energy_microstate
+    elif dE > 0 :
+        # Compute the exponential... somehow this can be sped up by tabulating?
+        exponential = np.exp(- dE / (kB * temperature))
+
+        # Generate a random number r
+        r = random.random()
+
+        # Compare to the exponential
+        if r <= exponential :
+            # Keep the flipped spin
+            return evolved_lattice, hypothetical_energy_microstate
+        else :
+            # Don't keep the flipped spin
+            return lattice, energy_microstate
+
+# INCOMPLETE
