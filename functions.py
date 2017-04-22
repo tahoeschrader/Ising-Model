@@ -24,36 +24,18 @@ import time
 # ------------------------------------------------------------------------------
 
 ################################################################################
-### Initialize a 2D Lattice with random up/down spins
+### Initialize the Ising Model and compute its energy
+### A 2D Lattice with random up/down spins and periodic boundary conditions
 ################################################################################
 
-def InitializeSpins(n) :
+def InitializeIsingModel(J, n) :
     lattice = np.zeros((n,n))
 
-    # Randomly assign each lattice site a spin up or down (1 vs -1)
+    # a) Randomly assign each lattice site a spin up or down (1 vs -1)
     random.seed()
     lattice = [[1 if random.random() >= .5 else -1 for row in range(n)] for col in range(n)]
 
-    return lattice
-
-################################################################################
-### Flip a random spin on a lattice
-################################################################################
-
-def SpinFlip(n, lattice) :
-    random.seed()
-    row = int(random.random()*n)                # random row
-    col = int(random.random()*n)                # random column
-    lattice[row][col] = - lattice[row][col]     # negative sign switches flip
-    return lattice
-
-################################################################################
-### Measuring the Energy of the system
-### For Energy: E = - J SUM (S_i*S_j) -- the sum is of nearest neighbor products
-### Note: We want periodic boundary conditions for the lattice
-################################################################################
-
-def MeasureEnergy(lattice, n, J) :
+    # b) Grab the initial energy of this system
     # Initialize a list to store s_i * s_j values of all nearest neighbors
     spin_products = []
 
@@ -61,7 +43,7 @@ def MeasureEnergy(lattice, n, J) :
         for col in range(n) :
             spin = lattice[row][col]
             # ---------------------------------------------------------------
-            # Periodic boundary conditions
+            # Periodic boundary conditions -- Toroidal Symmetry
             # ---------------------------------------------------------------
             if row == 0 : # top boundary
                 spin_products.append(lattice[n - 1][col] * spin)
@@ -83,52 +65,131 @@ def MeasureEnergy(lattice, n, J) :
             elif col != n - 1 :
                 spin_products.append(lattice[row][col + 1] * spin)
             # ---------------------------------------------------------------
+
     # Sum all of the spin products
     neighbor_spin_sums = np.sum(spin_products)
 
     # Summing every nearest neighbor results in each nearest neighbor pair being
     # double counted, so the sum must be divided by two to get the energy
     energy = - J * (neighbor_spin_sums / 2.0)
-    return energy
+
+    return lattice, energy
+
+################################################################################
+### Flip a random spin on a lattice
+################################################################################
+
+def SpinFlip(n, lattice, J) :
+    # 1. Duplicate the lattice
+    hypothetical_lattice = lattice
+
+    # 2. Pick a random position
+    random.seed()
+    row = int(random.random()*n)                # random row
+    col = int(random.random()*n)                # random column
+
+    # 3. Flip the spin
+    hypothetical_lattice[row][col] = - hypothetical_lattice[row][col]
+
+    # 4. Get the energy change involved in this flip... only need neighbors
+    # around this single flip, rather than all neighbors in entire lattice
+    lattice_products = []
+    hypothetical_lattice_products = []
+
+    spin = lattice[row][col]
+    hypothetical_spin = hypothetical_lattice[row][col]
+
+    # ---------------------------------------------------------------
+    # Periodic boundary conditions -- Toroidal Symmetry
+    # ---------------------------------------------------------------
+    if row == 0 : # top boundary
+        spin_products.append(lattice[n - 1][col] * spin)
+        hypothetical_spin_products.append(hypothetical_lattice[n - 1][col] * hypothetical_spin)
+    elif row != 0 :
+        spin_products.append(lattice[row - 1][col] * spin)
+        hypothetical_spin_products.append(hypothetical_lattice[row - 1][col] * hypothetical_spin)
+    # ---------------------------------------------------------------
+    if row == n - 1 : # bottom boundary
+        spin_products.append(lattice[0][col] * spin)
+        hypothetical_spin_products.append(hypothetical_lattice[0][col] * hypothetical_spin)
+    elif row != n - 1 :
+        spin_products.append(lattice[row + 1][col] * spin)
+        hypothetical_spin_products.append(hypothetical_lattice[row + 1][col] * hypothetical_spin)
+    # ---------------------------------------------------------------
+    if col == 0 : # left boundary
+        spin_products.append(lattice[row][n - 1] * spin)
+        hypothetical_spin_products.append(hypothetical_lattice[row][n - 1] * hypothetical_spin)
+    elif col != 0 :
+        spin_products.append(lattice[row][col - 1] * spin)
+        hypothetical_spin_products.append(hypothetical_lattice[row][col - 1] * hypothetical_spin)
+    # ---------------------------------------------------------------
+    if col == n - 1 : # right boundary
+        spin_products.append(lattice[row][0] * spin)
+        hypothetical_spin_products.append(hypothetical_lattice[row][0] * hypothetical_spin)
+    elif col != n - 1 :
+        spin_products.append(lattice[row][col + 1] * spin)
+        hypothetical_spin_products.append(hypothetical_lattice[row][col + 1] * hypothetical_spin)
+    # ---------------------------------------------------------------
+
+    # Sum all of the spin products
+    neighbor_spin_sums = np.sum(spin_products)
+    hypothetical_neighbor_spin_sums = np.sum(hypothetical_spin_products)
+
+    # Multiply by - J to get energy
+    energy = - J * (neighbor_spin_sums)
+    hypothetical_energy = - J * (hypothetical_neighbor_spin_sums)
+
+    # Subtract to get dE
+    hypothetical_dE = int(hypothetical_energy - energy)
+
+    return hypothetical_lattice, hypothetical_dE
 
 ################################################################################
 ### Measure the magnetization of the system
-### For Magnetization in the presence of a heatbath: M = SUM (M_a * P_a)
+### For Magnetization: M_tot = N_spins * <s> = N_spins * (1/N_spins)SUM (s_i)
 ################################################################################
 
-def MeasureMagnetization(magnetization, lattice, energy_microstate, kB, temperature) :
-    # M_a is the microstate magnetization -- equivalent to the sum of all spins
-    magnetization_microstate = np.sum(lattice)
+def MeasureMagnetization(lattice) :
+    # Total magnetization is just the sum of all spins in the lattice
+    magnetization= np.sum(lattice)
 
-    # Now, multiply by the Metropolis Probability
-    magnetization = (magnetization_microstate * np.exp(- energy_microstate / (kB * temperature)))
     return magnetization
 
 ################################################################################
 ### Metropolis Algorithm
 ################################################################################
 
-def MetropolisAlgorithm(energy_microstate, hypothetical_energy_microstate, kB, temperature, n, lattice, evolved_lattice) :
-    # Calculate the change in energy_microstate
-    dE = (hypothetical_energy_microstate - energy_microstate)
+def MetropolisAlgorithm(dE_exp, hypothetical_dE, lattice, hypothetical_lattice, energy) :
+    # Generate a random number r
+    r = random.random()
 
-    # Check values
-    if dE < 0 :
-        # Keep the flipped spin
-        return evolved_lattice, hypothetical_energy_microstate
-    elif dE > 0 :
-        # Compute the exponential... somehow this can be sped up by tabulating?
-        exponential = np.exp(- dE / (kB * temperature))
+    # Compare to the exponential
+    if r <= dE_exp :
+        # Keep the flipped spin and return the new lattice and new energy
+        lattice = hypothetical_lattice
+        energy = energy + hypothetical_dE
+        return lattice, energy
+    else :
+        # Don't keep the flipped spin and return the old lattice and energy
+        return lattice, energy
 
-        # Generate a random number r
-        r = random.random()
+################################################################################
+### Energy exponential
+### Based on neighbors, the total sum can change by 0 or +/- 2, 4, 6, 8
+### However, the metropolis algorithm only cares about positive energies, which
+### correspond to negative sums (not 0 or positive sums... so we store 4 values)
+################################################################################
 
-        # Compare to the exponential
-        if r <= exponential :
-            # Keep the flipped spin
-            return evolved_lattice, hypothetical_energy_microstate
-        else :
-            # Don't keep the flipped spin
-            return lattice, energy_microstate
+def EnergyExponential(kB, t, J) :
+    # Negative sums
+    possible_negative_sums = [-2, -4, -6, -8]
+
+    # Resulting energies
+    dEs = - J * possible_negative_sums
+
+    # Resulting exponentials for each, in the form of a dictionary
+    dE_exp = {dEs[0]:np.exp(-dEs[0]/(kB*t)), dEs[1]:np.exp(-dEs[1]/(kB*t)), dEs[2]:np.exp(-dEs[2]/(kB*t)), dEs[3]:np.exp(-dEs[3]/(kB*t))}
+    return dE_exp
 
 # INCOMPLETE
+#---------------------------------------------------------------------------------------
