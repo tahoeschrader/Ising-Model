@@ -7,19 +7,20 @@
 ### Model
 ################################################################################
 
+# Begin a time tracker
+import time
+start = time.time()
+print "Code Initiated"
+
 # ------------------------------------------------------------------------------
 
+# Import necessary functions
 from functions import InitializeIsingModel, MeasureMagnetization
 from functions import SpinFlip, MetropolisAlgorithm, EnergyExponential
 import numpy as np
 import matplotlib.pyplot as plt
-import time
 
 # ------------------------------------------------------------------------------
-
-# Begin a time tracker
-start = time.time()
-print "Code Initiated"
 
 ################################################################################
 ### Define parameters
@@ -48,6 +49,7 @@ for n in range(0, len(lattice_sizes)) :
     # Create empty vectors to save energy values needed for specific heat
     energies = []
     energies2 = []
+    dE2s = []
     c = []
 
     # Create empty vector for magnetizations
@@ -63,7 +65,7 @@ for n in range(0, len(lattice_sizes)) :
 
         # Run each temperature enough times to relax the system
         energy_runs = np.zeros(Nm)
-        for i in range(relaxer) :
+        for i in range(Nm) :
             # Flip a random spin and find dE
             hypothetical_lattice, hypothetical_dE = SpinFlip(lattice_sizes[n], lattice, J)
 
@@ -77,14 +79,23 @@ for n in range(0, len(lattice_sizes)) :
                 # Run the metropolis algorithm
                 lattice, energy_runs[i] = MetropolisAlgorithm(dE_exp[hypothetical_dE], hypothetical_dE, lattice, hypothetical_lattice, energy)
 
-        # Save the energy microstate, which is the relaxed energy value average
+        # Save the energy microstates, which are the relaxed energy value average
         energy = np.sum(energy_runs) / Nm
+        energy2 = np.sum(energy_runs**2) / Nm
+        dE2 = energy2 - (energy**2)
 
         # Calculate various energies and specific heat
         energies.append(energy)
-        energies2.append(np.sum(energy_runs**2) / Nm)
-        dE2 = energies2 - (energies**2)
-        c.append(dE2/(kB*(T[temp])))
+        energies2.append(energy2)
+        dE2s.append(dE2)
+
+        # Need to append specific heat value, but not sure what to do about the
+        # division by zero, so I just replot the same value as the one before it
+        # and ignore it when doing data analysis.
+        if T[temp] != 0 :
+            c.append(dE2/(kB*(T[temp]**2)))
+        elif T[temp] == 0 :
+            c.append(dE2/(kB*(T[temp - 1]**2)))
 
         # Calculate magnetizations
         magnetization = MeasureMagnetization(lattice)

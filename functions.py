@@ -93,8 +93,8 @@ def SpinFlip(n, lattice, J) :
 
     # 4. Get the energy change involved in this flip... only need neighbors
     # around this single flip, rather than all neighbors in entire lattice
-    lattice_products = []
-    hypothetical_lattice_products = []
+    spin_products = []
+    hypothetical_spin_products = []
 
     spin = lattice[row][col]
     hypothetical_spin = hypothetical_lattice[row][col]
@@ -185,10 +185,13 @@ def EnergyExponential(kB, t, J) :
     possible_negative_sums = [-2, -4, -6, -8]
 
     # Resulting energies
-    dEs = - J * possible_negative_sums
+    dEs = [-J * i for i in possible_negative_sums]
 
     # Resulting exponentials for each, in the form of a dictionary
-    dE_exp = {dEs[0]:np.exp(-dEs[0]/(kB*t)), dEs[1]:np.exp(-dEs[1]/(kB*t)), dEs[2]:np.exp(-dEs[2]/(kB*t)), dEs[3]:np.exp(-dEs[3]/(kB*t))}
+    if t != 0 :
+        dE_exp = {dEs[0]:np.exp(-dEs[0]/(kB*t)), dEs[1]:np.exp(-dEs[1]/(kB*t)), dEs[2]:np.exp(-dEs[2]/(kB*t)), dEs[3]:np.exp(-dEs[3]/(kB*t))}
+    elif t == 0 :
+        dE_exp = {dEs[0]:0, dEs[1]:0, dEs[2]:0, dEs[3]:0}
     return dE_exp
 
 # INCOMPLETE
