@@ -6,8 +6,7 @@
 ### This code will generate the functions needing to solve the 2D Ising Model.
 ### Our problem uses an n x n lattice with periodic boundary conditions. There
 ### is a nearest neighbor interactions strength of J = 1.5 and no external
-### magnetic field. The metropolis algorithm is used to relax the system of spins
-### to the desired temperature(s).
+### magnetic field. 
 ###         a) Plots magnetization as a function of temperature to extract the
 ###             critical temperature.
 ###         b) Calculates specific heat per spin for multiple lattices, then
@@ -19,7 +18,6 @@
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-import time
 
 # ------------------------------------------------------------------------------
 
@@ -33,14 +31,14 @@ def InitializeIsingModel(J, n) :
 
     # a) Randomly assign each lattice site a spin up or down (1 vs -1)
     random.seed()
-    lattice = [[1 if random.random() >= .5 else -1 for row in range(n)] for col in range(n)]
+    lattice = [[1 if random.random() > .5 else -1 for row in np.arange(n)] for col in np.arange(n)]
 
     # b) Grab the initial energy of this system
     # Initialize a list to store s_i * s_j values of all nearest neighbors
     spin_products = []
 
-    for row in range(n) :
-        for col in range(n) :
+    for row in np.arange(n) :
+        for col in np.arange(n) :
             spin = lattice[row][col]
             # ---------------------------------------------------------------
             # Periodic boundary conditions -- Toroidal Symmetry
@@ -81,7 +79,7 @@ def InitializeIsingModel(J, n) :
 
 def SpinFlip(n, lattice, J) :
     # 1. Duplicate the lattice
-    hypothetical_lattice = lattice
+    hypothetical_lattice = np.copy(lattice)
 
     # 2. Pick a random position
     random.seed()
@@ -140,7 +138,7 @@ def SpinFlip(n, lattice, J) :
     hypothetical_energy = - J * (hypothetical_neighbor_spin_sums)
 
     # Subtract to get dE
-    hypothetical_dE = int(hypothetical_energy - energy)
+    hypothetical_dE = hypothetical_energy - energy
 
     return hypothetical_lattice, hypothetical_dE
 
@@ -165,8 +163,9 @@ def MetropolisAlgorithm(dE_exp, hypothetical_dE, lattice, hypothetical_lattice, 
 
     # Compare to the exponential
     if r <= dE_exp :
-        # Keep the flipped spin and return the new lattice and new energy
-        lattice = hypothetical_lattice
+        # Keep the flipped spin by accepting the hypothetical lattice and energy
+        # change
+        lattice = np.copy(hypothetical_lattice)
         energy = energy + hypothetical_dE
         return lattice, energy
     else :
@@ -175,24 +174,46 @@ def MetropolisAlgorithm(dE_exp, hypothetical_dE, lattice, hypothetical_lattice, 
 
 ################################################################################
 ### Energy exponential
-### Based on neighbors, the total sum can change by 0 or +/- 2, 4, 6, 8
+### Based on neighbors, the total sum can change by 0 or +/- 4, 8
 ### However, the metropolis algorithm only cares about positive energies, which
-### correspond to negative sums (not 0 or positive sums... so we store 4 values)
+### correspond to negative sums (not 0 or positive sums... so we store 2 values)
 ################################################################################
 
-def EnergyExponential(kB, t, J) :
+def EnergyExponential(t, J) :
     # Negative sums
-    possible_negative_sums = [-2, -4, -6, -8]
+    possible_negative_sums = [-4, -8]
 
     # Resulting energies
     dEs = [-J * i for i in possible_negative_sums]
 
     # Resulting exponentials for each, in the form of a dictionary
     if t != 0 :
-        dE_exp = {dEs[0]:np.exp(-dEs[0]/(kB*t)), dEs[1]:np.exp(-dEs[1]/(kB*t)), dEs[2]:np.exp(-dEs[2]/(kB*t)), dEs[3]:np.exp(-dEs[3]/(kB*t))}
+        dE_exp = {dEs[0]:np.exp(-dEs[0]/t), dEs[1]:np.exp(-dEs[1]/t)}
     elif t == 0 :
-        dE_exp = {dEs[0]:0, dEs[1]:0, dEs[2]:0, dEs[3]:0}
+        dE_exp = {dEs[0]:0, dEs[1]:0}
     return dE_exp
 
-# INCOMPLETE
+################################################################################
+### Measure Energy
+### This function will flip spins, find hypothetical energies, and run the
+### Metropolis Algorithm if needed. It should spit back out energy and lattice.
+################################################################################
+
+def MeasureEnergy(n, lattice, J, energy, exponentials) :
+    # 1. Flip a random spin and find the hypothetical change in energy, dE
+    hypothetical_lattice, hypothetical_dE = SpinFlip(n, lattice, J)
+
+    # 2. Check dE to see if we need to run the Metropolis algorithm
+    if hypothetical_dE <= 0 :
+        # 3a. Keep the flipped spin
+        lattice = np.copy(hypothetical_lattice)
+        energy = energy + hypothetical_dE
+        return lattice, energy
+    elif hypothetical_dE > 0 :
+        # 3b. Run the metropolis algorithm to check if we keep the spin
+        exponential = exponentials[hypothetical_dE]
+        lattice, energy = MetropolisAlgorithm(exponential, hypothetical_dE, lattice, hypothetical_lattice, energy)
+        return lattice, energy
+
+# COMPLETE
 #---------------------------------------------------------------------------------------
